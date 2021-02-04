@@ -1,0 +1,100 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<strings.h>
+#include<string.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<netinet/in.h>
+#include<sys/fcntl.h>
+#include<arpa/inet.h>
+
+int main(int argc, char*argv[])
+{
+	int sockfd,portno,n;
+	struct sockaddr_in serv_addr;
+	char buffer[4096],*servip;
+	if(argc<4)
+	{ 
+		fprintf(stderr,"usage%s serverip filename port\n",argv[0]);
+		exit(0);
+	}
+	servip=argv[1];
+	portno=atoi(argv[3]);
+	sockfd=socket(AF_INET,SOCK_STREAM,0);
+	if(sockfd<0)
+		perror("error openingt socket");
+	printf("Client Online\n");
+	bzero((char*)&serv_addr,sizeof(serv_addr));
+	serv_addr.sin_family=AF_INET;
+	serv_addr.sin_addr.s_addr=inet_addr(servip);
+	serv_addr.sin_port=htons(portno);
+	if(connect(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr))<0)
+		perror("error connecting");
+	write(sockfd,argv[2],strlen(argv[2])+1);
+	bzero(buffer,4096);
+	n=read(sockfd,buffer,4096);
+	if(n<=0)
+	{	
+		perror("file not found");
+		exit(0);
+	}
+	write(1,buffer,n);
+}
+
+Server.c
+#include<stdio.h>
+#include<stdlib.h>
+#include<strings.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<netinet/in.h>
+#include<sys/fcntl.h>
+int main(int argc, char*argv[])
+{	
+	int fd,sockfd,newsockfd,clilen,portno,n;
+	struct sockaddr_in serv_addr,cli_addr;
+	char buffer[4096];
+	if(argc<2)
+	{ 
+		fprintf(stderr,"no port\n");
+		  exit(1);
+	}
+	portno=atoi(argv[1]);
+	sockfd=socket(AF_INET,SOCK_STREAM,0);
+	if(sockfd<0)
+		error("error opening socket");
+	bzero((char*)&serv_addr,sizeof(serv_addr));
+	serv_addr.sin_family=AF_INET;
+	serv_addr.sin_addr.s_addr=(htonl)INADDR_ANY;
+	serv_addr.sin_port=htons(portno);
+	if(bind(sockfd,(struct sockaddr*) &serv_addr,sizeof(serv_addr))<0)
+		perror("error bindind");
+	listen(sockfd,5);
+	clilen=sizeof(cli_addr);
+	printf("SERVER Waiting for CLIENT ....\n");
+	while(1)
+	{	newsockfd=accept(sockfd,(struct sockaddr*) &cli_addr,&clilen);
+		if(newsockfd<0)
+			perror("error on accept");
+		bzero(buffer,4096);
+		read(newsockfd,buffer,4096);
+		fd=open(buffer,O_RDONLY);
+		if(fd<0)
+		{  write(newsockfd,"file does not exist in server",30);
+		   perror("File not found");
+		   exit(0);
+		}
+		else
+		{ while(1)
+			{ n=read(fd,buffer,4096);
+			  if(n<=0)
+				exit(0);
+			  write(newsockfd,buffer,n);
+			  printf("Transfer completed\n");
+			}
+		close(fd);
+		close(newsockfd);
+	}
+	}
+	return 0;
+}

@@ -1,0 +1,122 @@
+set ns [new Simulator]
+set nf [open first.nam w]
+$ns namtrace-all $nf
+set tf [open p6.tr w]
+$ns trace-all $tf
+proc finish {} {
+global ns nf tf
+$ns flush-trace
+close $nf
+close $tf
+exec nam first.nam &
+exit 0
+}
+set n0 [$ns node]
+$n0 label "s"
+set n1 [$ns node]
+$n1 label "d"
+set n2 [$ns node]
+$n2 label "i1"
+set n3 [$ns node]
+$n3 label "i2"
+$ns duplex-link $n0 $n2 10Mb 1ms DropTail
+$ns duplex-link $n1 $n2 10Mb 1ms DropTail
+$ns duplex-link $n2 $n3 10Mb 1ms DropTail
+set tcp0 [new Agent/TCP]
+$ns attach-agent $n0 $tcp0
+set udp1 [new Agent/UDP]
+$ns attach-agent $n1 $udp1
+set null0 [new Agent/Null]
+$ns attach-agent $n3 $null0
+set sink0 [new Agent/TCPSink]                                                                
+$ns attach-agent $n3 $sink0
+set ftp0 [new Application/FTP]
+$ftp0 attach-agent $tcp0
+set cbr1 [new Application/Traffic/CBR]
+$cbr1 attach-agent $udp1
+$ns connect $tcp0 $sink0
+$ns connect $udp1 $null0
+$ns at 0.1 "$cbr1 start"
+$ns at 0.1 "$ftp0 start"
+$ns at 0.5 "finish"
+$ns run
+
+Awk file:
+Throughput.awk
+BEGIN{ 
+d=0;
+tcp=0;
+udp=0;
+pkt_t=0;
+time_t=0;
+pkt_u=0;
+time_u=0;
+}
+{ 
+{ 
+if(($1=="r"&& $3=="0"&& $4=="2"&& $5=="tcp")||($1=="r"&& $3=="2"&& $4=="3"&& $5=="tcp"))
+	{ pkt_t=pkt_t+$6;
+	  time_t=$2;
+	printf("%f\t%f\n",pkt_t,time_t);
+	}
+if(($1=="r"&& $3=="1"&& $4=="2"&& $5=="cbr")|| ($1=="r"&& $3=="2"&& $4=="3"&& $5=="cbr"))
+	{ pkt_u=pkt_u+$6;
+	  time_u=$2;
+		printf("%f\t%f\n",pkt_u,time_u);
+	}
+}
+}
+END{
+printf("Throughput of TCP :%f Mbps\n",((pkt_t/time_t)*(8/1000000)));
+}
+
+2.End to End delay 
+BEGIN {
+a=0.0;
+s=0.0;
+n=0;
+e=0;
+}
+{
+if($3 == "0"&& $4=="2")
+{
+n++;
+}
+if($3 == "0"&& $1=="+")
+{
+a=a+$2;
+}
+if($1=="r")
+{
+s=s+$2;
+}
+e=(a-s)/n;
+printf("%d\t%d\n", a,s);
+}
+END {
+printf("arrival time=%f\n",a);
+printf("sent time=%f\n",s );
+printf("End to ENd delay=%f for %d connections\n",e,n);
+}
+
+3. PDR.awk
+BEGIN{
+pdr=0.0;
+s=0.0;
+r=0.0;
+}
+{ {
+	if($1=="+")
+	{ s++;
+	}
+else if($1=="r")
+	{ r++;
+	}
+pdr=r/s;
+}
+}
+END{
+printf("Sent=%d\n",s);
+printf("Recv packets=%d\n",r);
+printf("PDR=%f\n",pdr);
+}
